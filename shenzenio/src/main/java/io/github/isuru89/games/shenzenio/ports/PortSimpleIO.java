@@ -14,11 +14,21 @@ public class PortSimpleIO extends Port {
 
     @Override
     public Optional<Integer> peek() {
-        return Optional.of(read().getValue());
+        return Optional.of(readWithoutModeCheck().getValue());
     }
 
     @Override
     public Value write(int num) {
+        ioMode.set(IOMode.OUTPUT);
+        try {
+            for (Port linkedPort : linkedPorts) {
+                linkedPort.ioMode.set(IOMode.INPUT);
+            }
+        } catch (RuntimeException e) {
+            ioMode.makeAvailable();
+            throw e;
+        }
+
         if (value != null) {
             return value.write(num);
         }
@@ -27,6 +37,12 @@ public class PortSimpleIO extends Port {
 
     @Override
     public Value read() {
+        ioMode.set(IOMode.INPUT);
+
+        return readWithoutModeCheck();
+    }
+
+    private Value readWithoutModeCheck() {
         if (value != null) {
             return value.read();
         }
@@ -36,6 +52,11 @@ public class PortSimpleIO extends Port {
     @Override
     boolean supportsPort(Port port) {
         return (port instanceof PortSimpleIO);
+    }
+
+    @Override
+    public void tick(int tickNumber) {
+        ioMode.makeAvailable();
     }
 
     @Override

@@ -1,6 +1,7 @@
 package io.github.isuru89.games.shenzenio;
 
 import io.github.isuru89.games.shenzenio.ports.CaptureXBus;
+import io.github.isuru89.games.shenzenio.ports.IOMode;
 import io.github.isuru89.games.shenzenio.ports.InputXBus;
 import io.github.isuru89.games.shenzenio.ports.PortSimpleIO;
 import io.github.isuru89.games.shenzenio.ports.PortXBus;
@@ -8,6 +9,13 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+
+import static io.github.isuru89.games.shenzenio.Utils.assertBlockedValue;
+import static io.github.isuru89.games.shenzenio.Utils.assertMode;
+import static io.github.isuru89.games.shenzenio.Utils.assertValue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PortXBusTest {
 
@@ -30,7 +38,44 @@ class PortXBusTest {
     @Test
     void shouldReturnZeroNonConnected() {
         var port = new PortXBus("x0");
-        Utils.assertBlockedValue(port.read());
+        assertBlockedValue(port.read());
+    }
+
+    @Test
+    void writingShouldChangeLinkedModes() {
+        var src = new PortXBus("x1");
+        var dest = new PortXBus("x1");
+        src.connect(dest);
+
+        assertValue(63, src.write(63));
+        assertMode(IOMode.OUTPUT, src);
+        assertMode(IOMode.INPUT, dest);
+    }
+
+    @Test
+    void bothPortsCannotWriteInSameTick() {
+        var src = new PortXBus("x0");
+        var dest = new PortXBus("x1");
+        src.connect(dest);
+
+        assertValue(63, src.write(63));
+        assertMode(IOMode.OUTPUT, src);
+        assertMode(IOMode.INPUT, dest);
+
+        Assertions.assertThrows(RuntimeException.class, () -> dest.write(42));
+        assertMode(IOMode.OUTPUT, src);
+        assertMode(IOMode.INPUT, dest);
+    }
+
+    @Test
+    void shouldBlockWhenReadTwice() {
+        var src = new PortXBus("x1");
+        var dest = new PortXBus("x1");
+        src.connect(dest);
+
+        assertValue(25, src.write(25));
+        assertValue(25, dest.read());
+        assertBlockedValue(dest.read());
     }
 
 
@@ -40,23 +85,22 @@ class PortXBusTest {
         var dest = new PortXBus("x1");
         src.connect(dest);
 
-        Utils.assertValue(63, src.write(63));
+        assertValue(63, src.write(63));
 
         var peekVal = src.peek();
-        Assertions.assertTrue(peekVal.isPresent());
-        Assertions.assertEquals(63, peekVal.get());
+        assertTrue(peekVal.isPresent());
+        assertEquals(63, peekVal.get());
 
-        Utils.assertBlockedValue(src.write(40));
+        assertBlockedValue(src.write(40));
 
-        Utils.assertValue(63, dest.read());
-        Utils.assertBlockedValue(dest.read());
+        assertValue(63, dest.read());
+        assertBlockedValue(dest.read());
 
-
-        Utils.assertValue(40, src.write(40));
+        assertValue(40, src.write(40));
 
         peekVal = src.peek();
-        Assertions.assertTrue(peekVal.isPresent());
-        Assertions.assertEquals(40, peekVal.get());
+        assertTrue(peekVal.isPresent());
+        assertEquals(40, peekVal.get());
     }
 
     @Test
@@ -65,11 +109,11 @@ class PortXBusTest {
         var dest = new PortXBus("x1");
         src.connect(dest);
 
-        Utils.assertBlockedValue(src.read());
-        Utils.assertBlockedValue(dest.read());
+        assertBlockedValue(src.read());
+        assertBlockedValue(dest.read());
 
         // repeatable reads should still block
-        Utils.assertBlockedValue(dest.read());
+        assertBlockedValue(dest.read());
     }
 
 
@@ -79,15 +123,15 @@ class PortXBusTest {
         var dest = new PortXBus("x0");
         src.connect(dest);
 
-        Utils.assertBlockedValue(src.read());
-        Utils.assertBlockedValue(dest.read());
+        assertBlockedValue(src.read());
+        assertBlockedValue(dest.read());
 
         src.write(63);
 
         var peekVal = src.peek();
-        Assertions.assertTrue(peekVal.isPresent());
-        Assertions.assertEquals(63, peekVal.get());
-        Utils.assertValue(63, src.read());
+        assertTrue(peekVal.isPresent());
+        assertEquals(63, peekVal.get());
+        assertValue(63, src.read());
     }
 
 
@@ -97,44 +141,41 @@ class PortXBusTest {
         var dest = new PortXBus("x0");
         src.connect(dest);
 
-        Utils.assertBlockedValue(src.read());
-        Utils.assertBlockedValue(dest.read());
+        assertBlockedValue(src.read());
+        assertBlockedValue(dest.read());
 
         src.write(63);
 
-        Utils.assertValue(63, dest.read());
-        Utils.assertBlockedValue(src.read());
+        assertValue(63, dest.read());
+        assertBlockedValue(src.read());
 
         // cannot read again
-        Utils.assertBlockedValue(dest.read());
+        assertBlockedValue(dest.read());
     }
 
     @Test
-    void shouldChainAndOnlyOneWillGetValue() {
+    void shouldBeAbleToChainOnNextTickOnwards() {
         var src1 = new PortXBus("x0");
         var src2 = new PortXBus("x0");
         var dest = new PortXBus("x0");
         src1.connect(src2);
         src2.connect(dest);
-
-        Utils.assertBlockedValue(src1.read());
-        Utils.assertBlockedValue(src2.read());
-        Utils.assertBlockedValue(dest.read());
+        var ticks = Utils.withTickers(src1, src2, dest);
 
         src1.write(100);
+        assertValue(100, src2.read());
+        assertBlockedValue(dest.read());
 
-        Utils.assertValue(100, src2.read());
-        Utils.assertBlockedValue(dest.read());
-
+        ticks.tick(1);
         src2.write(50);
-        Utils.assertValue(50, src1.read());
-        Utils.assertBlockedValue(dest.read());
+        assertValue(50, src1.read());
+        assertBlockedValue(dest.read());
 
+        ticks.tick(2);
         dest.write(25);
-        Utils.assertValue(25, src1.read());
-        Utils.assertBlockedValue(src2.read());
+        assertValue(25, src1.read());
+        assertBlockedValue(src2.read());
     }
-
 
     @Test
     void shouldFanIn() {
@@ -144,25 +185,23 @@ class PortXBusTest {
         src1.connect(dest);
         src2.connect(dest);
 
-        Utils.assertBlockedValue(src1.read());
-        Utils.assertBlockedValue(src2.read());
-        Utils.assertBlockedValue(dest.read());
+        assertBlockedValue(src1.read());
+        assertBlockedValue(src2.read());
+        assertBlockedValue(dest.read());
 
         src1.write(100);
-        Utils.assertValue(100, src2.read());
-        Utils.assertBlockedValue(dest.read());
+        assertValue(100, src2.read());
+        assertBlockedValue(dest.read());
 
-        src1.write(100);
-        Utils.assertValue(100, dest.read());
-        Utils.assertBlockedValue(src2.read());
+        src1.write(75);
+        assertValue(75, dest.read());
+        assertBlockedValue(src2.read());
 
         src2.write(50);
-        Utils.assertValue(50, src1.read());
-        Utils.assertBlockedValue(dest.read());
+        assertValue(50, dest.read());
+        assertBlockedValue(dest.read());
 
-        dest.write(25);
-        Utils.assertValue(25, src1.read());
-        Utils.assertBlockedValue(src2.read());
+        assertThrows(RuntimeException.class, () -> dest.write(25));
     }
 
 
@@ -174,25 +213,22 @@ class PortXBusTest {
         src.connect(dest1);
         src.connect(dest2);
 
-        Utils.assertValue(42, src.write(42));
+        assertValue(42, src.write(42));
 
-        Utils.assertValue(42, dest1.read());
-        Utils.assertBlockedValue(dest2.read());
+        assertValue(42, dest1.read());
+        assertBlockedValue(dest2.read());
     }
 
     @Test
-    void shouldBiDirectional() {
-        var src = new PortXBus("x1");
+    void shouldNotBiDirectionalInSameTick() {
+        var src = new PortXBus("x0");
         var dest = new PortXBus("x1");
         src.connect(dest);
 
-        Utils.assertValue(100, src.write(100));
+        assertValue(100, src.write(100));
+        assertThrows(RuntimeException.class, () -> dest.write(50));
 
-        Utils.assertBlockedValue(dest.write(150));
-        Utils.assertValue(100, dest.read());
-        Utils.assertValue(150, dest.write(150));
-        Utils.assertBlockedValue(src.write(200));
-        Utils.assertValue(150, src.read());
+
     }
 
     @Test
@@ -202,7 +238,7 @@ class PortXBusTest {
         src.connect(capture);
 
         src.write(100);
-        Utils.assertValue(100, capture.read());
+        assertValue(100, capture.read());
     }
 
 
@@ -212,15 +248,15 @@ class PortXBusTest {
         var capture = new CaptureXBus("signal");
         src.connect(capture);
 
-        Utils.assertValue(100, src.write(100));
-        Utils.assertValue(150, src.write(150));
-        Utils.assertValue(50, src.write(50));
+        assertValue(100, src.write(100));
+        assertValue(150, src.write(150));
+        assertValue(50, src.write(50));
         // latest value must be 50
-        Utils.assertValue(50, capture.read());
+        assertValue(50, capture.read());
 
         var list = capture.getAllValues();
-        Assertions.assertEquals(3, list.size());
-        Assertions.assertEquals(list, Arrays.asList(100, 150, 50));
+        assertEquals(3, list.size());
+        assertEquals(list, Arrays.asList(100, 150, 50));
     }
 
     @Test
@@ -231,16 +267,16 @@ class PortXBusTest {
         src.connect(dest);
         src.connect(capture);
 
-        Utils.assertValue(25, src.write(25));
-        Utils.assertValue(50, src.write(50));
-        Utils.assertValue(75, src.write(75));
+        assertValue(25, src.write(25));
+        assertValue(50, src.write(50));
+        assertValue(75, src.write(75));
 
-        Utils.assertBlockedValue(dest.read());
+        assertBlockedValue(dest.read());
 
         // all the values must have read by sink capture
         var list = capture.getAllValues();
-        Assertions.assertEquals(3, list.size());
-        Assertions.assertEquals(list, Arrays.asList(25, 50, 75));
+        assertEquals(3, list.size());
+        assertEquals(list, Arrays.asList(25, 50, 75));
     }
 
     @Test
@@ -249,9 +285,9 @@ class PortXBusTest {
         var port = new PortXBus("x1");
         input.connect(port);
 
-        Utils.assertValue(3, port.read());
-        Utils.assertValue(3, port.read());
-        Utils.assertValue(3, port.read());
+        assertValue(3, port.read());
+        assertValue(3, port.read());
+        assertValue(3, port.read());
     }
 
 

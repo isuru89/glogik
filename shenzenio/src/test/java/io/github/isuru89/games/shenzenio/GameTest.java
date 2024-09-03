@@ -6,9 +6,11 @@ import io.github.isuru89.games.shenzenio.ports.CaptureSimpleIO;
 import io.github.isuru89.games.shenzenio.ports.InputSimpleIO;
 import io.github.isuru89.games.shenzenio.ports.InputXBus;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
@@ -81,6 +83,10 @@ class GameTest {
         }
 
         var alarmList = capture.getAllValues();
+
+        var expected = Arrays.asList(0, 0, 100, 100, 0, 100, 100, 100, 0, 100, 100, 100, 0, 100, 0, 0, 0, 0, 100, 0, 100, 100, 100, 0, 100, 100, 100, 100, 0, 100, 0, 0, 100, 100, 0, 0, 100, 100, 100, 100, 100, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+        Assertions.assertEquals(expected, alarmList);
 
         System.out.println("Time | Sensor | Alarm |");
         for (int i = 0; i < alarmList.size(); i++) {

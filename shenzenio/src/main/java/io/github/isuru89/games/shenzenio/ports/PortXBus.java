@@ -55,11 +55,22 @@ public class PortXBus extends Port {
 
     @Override
     public Value write(int num) {
+        ioMode.set(IOMode.OUTPUT);
+
         if (!priorityPorts.isEmpty()) {
             for (var port : priorityPorts) {
                 port.write(num);
             }
             return Value.nonBlocked(num);
+        }
+
+        try {
+            for (Port linkedPort : linkedPorts) {
+                linkedPort.ioMode.set(IOMode.INPUT);
+            }
+        } catch (RuntimeException e) {
+            ioMode.makeAvailable();
+            throw e;
         }
 
         return value.write(num);
@@ -77,5 +88,12 @@ public class PortXBus extends Port {
             return Value.blocked();
         }
         return value.read();
+    }
+
+    @Override
+    public void tick(int tickNumber) {
+        if (peek().isEmpty()) {
+            ioMode.makeAvailable();
+        }
     }
 }
