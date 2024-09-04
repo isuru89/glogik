@@ -6,7 +6,7 @@ import io.github.isuru89.games.shenzenio.ports.PortXBus;
 public class MC4000 extends Microcontroller {
     public MC4000(String id) {
         super(id, new Configuration()
-                .setMaxNoOfInstructions(10)
+                .setMaxNoOfInstructions(9)
                 .addRegister("acc")
                 .addPort(new PortSimpleIO("p0"))
                 .addPort(new PortSimpleIO("p1"))
