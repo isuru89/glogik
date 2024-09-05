@@ -8,13 +8,27 @@ public class ExA {
 
     private final String id;
     private final AtomicInteger subIds = new AtomicInteger(0);
-    private final Program program;
+    private Program program;
     private Host currentHost;
     private File currentFile;
+    private Level currentLevel;
+    private boolean local;
+    private BlockContext blockContext;
 
     public ExA(String id, Program program) {
         this.id = id;
+        this.local = false;
+        this.setProgram(program);
+        this.blockContext = new BlockContext(BlockType.NONE, this.local);
+    }
+
+    void setCurrentLevel(Level currentLevel) {
+        this.currentLevel = currentLevel;
+    }
+
+    void setProgram(Program program) {
         this.program = program;
+        this.program.setOwner(this);
     }
 
     public void moveToHost(int hostId) {
@@ -48,7 +62,7 @@ public class ExA {
         currentFile = file;
     }
 
-    public void dropFile(File file) {
+    public void dropFile() {
         if (currentHost == null) {
             throw new RuntimeException("exa is not in a host!");
         }
@@ -57,7 +71,7 @@ public class ExA {
             throw new RuntimeException("exa does not owning a file!");
         }
 
-        var fileOwner = file.getOwnedBy().orElseThrow(() -> new RuntimeException("file is not owned by any exa!"));
+        var fileOwner = currentFile.getOwnedBy().orElseThrow(() -> new RuntimeException("file is not owned by any exa!"));
         if (!this.equals(fileOwner)) {
             throw new RuntimeException("file does not owned by this exa!");
         }
@@ -66,16 +80,90 @@ public class ExA {
             throw new RuntimeException("not enough space to drop file!");
         }
 
-        currentHost.addFile(file);
-        file.setOwnedBy(null);
+        currentHost.addFile(currentFile);
+        currentFile.setOwnedBy(null);
         currentFile = null;
     }
 
-    public ExA replicate() {
-        String newId = id + ":" + subIds.getAndIncrement();
-        Program copiedProgram = program.copy(program.getCurrentPosition());
+    public ExA replicate(String label) {
+        if (!currentHost.hasEnoughSpace()) {
+            throw new RuntimeException("not enough space on the current host");
+        }
 
-        return new ExA(newId, copiedProgram);
+        if (program.getLabelPosition(label) < 0) {
+            throw new RuntimeException("no such label exists by given name");
+        }
+
+        String newId = id + ":" + subIds.getAndIncrement();
+        int spawnPos = program.getLabelPosition(label);
+        Program copiedProgram = program.copy(spawnPos);
+
+        var newExa = new ExA(newId, copiedProgram);
+        currentHost.addExA(newExa);
+
+        return newExa;
+    }
+
+    public void wipe() {
+        if (currentFile == null) {
+            throw new RuntimeException("no file is held by this exa");
+        }
+
+        currentFile.setOwnedBy(null);
+        currentFile = null;
+    }
+
+    public void make() {
+        if (currentFile != null) {
+            throw new RuntimeException("exa is holding a file already");
+        }
+
+        if (currentLevel == null) {
+            throw new RuntimeException("this exa does not belong to a level");
+        }
+
+        int fId = 200;
+        while (currentLevel.findFileById(String.valueOf(fId)).isPresent()) {
+            fId++;
+        }
+
+        var file = new File(String.valueOf(fId));
+        currentLevel.addFile(file);
+        currentHost.addFile(file);
+        file.setOwnedBy(this);
+    }
+
+    public void modeChange() {
+        this.local = !this.local;
+    }
+
+    public Optional<ExA> findAnotherExaInThisHost() {
+        return currentHost.getAnotherExa(this);
+    }
+
+    public Optional<ExA> findAnotherExaInLevel() {
+        return currentLevel.findAnyOtherExa(this);
+    }
+
+    public void halt() {
+        if (currentFile != null) {
+            currentHost.addFile(currentFile);
+            currentFile.setOwnedBy(null);
+            currentFile = null;
+        }
+
+        currentHost.removeExA(this);
+        currentLevel.removeExa(this);
+    }
+
+    public void kill() {
+        var other = currentHost.getAnotherExa(this);
+        if (other.isPresent()) {
+            other.get().halt();
+
+        } else {
+            throw new RuntimeException("no exas to kill");
+        }
     }
 
     public Optional<File> getCurrentFile() {
@@ -101,5 +189,12 @@ public class ExA {
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+
+    static enum BlockType {
+        NONE, IO
+    }
+
+    static record BlockContext(BlockType blockType, boolean local) {
     }
 }

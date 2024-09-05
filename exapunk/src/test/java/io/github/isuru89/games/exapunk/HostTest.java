@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -174,7 +175,7 @@ class HostTest {
     }
 
     private Program defaultProgram() {
-        return new Program();
+        return new Program(List.of());
     }
 
     private File aFile(String id) {

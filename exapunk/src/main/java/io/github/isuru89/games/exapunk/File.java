@@ -1,10 +1,6 @@
 package io.github.isuru89.games.exapunk;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
 public class File {
 
@@ -30,6 +26,10 @@ public class File {
 
     public static File createWithContent(String id, List<String> content) {
         return new File(id, content);
+    }
+
+    public String getId() {
+        return id;
     }
 
     public Optional<Host> getPlacedHost() {

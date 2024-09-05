@@ -3,6 +3,8 @@ package io.github.isuru89.games.exapunk;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 class ExATest {
 
 
@@ -155,43 +157,42 @@ class ExATest {
     @Test
     void dropFile_ShouldFailIfExaDoesNotOwnAFile() {
         var exa = new ExA("exa-1", defaultProgram());
-        var file = File.create("201");
 
-        Assertions.assertThrows(RuntimeException.class, () -> exa.dropFile(file));
+        Assertions.assertThrows(RuntimeException.class, () -> exa.dropFile());
     }
-
-    @Test
-    void dropFile_ShouldFailIfExaTryToDropNoOneOwnedFile() {
-        var host = new Host("800", 3);
-        var exa = new ExA("exa-1", defaultProgram());
-        var file = File.create("201");
-        var fileOther = File.create("202");
-
-        host.addFile(file);
-        host.addExA(exa);
-        exa.grabFile(file);
-
-        Assertions.assertThrows(RuntimeException.class, () -> exa.dropFile(fileOther));
-    }
-
-
-    @Test
-    void dropFile_ShouldFailIfExaTryToDropFileOwnedByAnotherExa() {
-        var host = new Host("800", 5);
-        var exa = new ExA("exa-1", defaultProgram());
-        var exaOther = new ExA("exa-2", defaultProgram());
-        var file = File.create("201");
-        var fileOther = File.create("202");
-
-        host.addFile(file);
-        host.addFile(fileOther);
-        host.addExA(exa);
-        host.addExA(exaOther);
-        exaOther.grabFile(fileOther);
-        exa.grabFile(file);
-
-        Assertions.assertThrows(RuntimeException.class, () -> exa.dropFile(fileOther));
-    }
+//
+//    @Test
+//    void dropFile_ShouldFailIfExaTryToDropNoOneOwnedFile() {
+//        var host = new Host("800", 3);
+//        var exa = new ExA("exa-1", defaultProgram());
+//        var file = File.create("201");
+//        var fileOther = File.create("202");
+//
+//        host.addFile(file);
+//        host.addExA(exa);
+//        exa.grabFile(file);
+//
+//        Assertions.assertThrows(RuntimeException.class, () -> exa.dropFile());
+//    }
+//
+//
+//    @Test
+//    void dropFile_ShouldFailIfExaTryToDropFileOwnedByAnotherExa() {
+//        var host = new Host("800", 5);
+//        var exa = new ExA("exa-1", defaultProgram());
+//        var exaOther = new ExA("exa-2", defaultProgram());
+//        var file = File.create("201");
+//        var fileOther = File.create("202");
+//
+//        host.addFile(file);
+//        host.addFile(fileOther);
+//        host.addExA(exa);
+//        host.addExA(exaOther);
+//        exaOther.grabFile(fileOther);
+//        exa.grabFile(file);
+//
+//        Assertions.assertThrows(RuntimeException.class, () -> exa.dropFile());
+//    }
 
     @Test
     void dropFile_ShouldFailIfExaCannotDropFileInFullyOccupiedHost() {
@@ -207,7 +208,7 @@ class ExATest {
         exa.grabFile(file);
         host.addExA(exaSecond);
 
-        Assertions.assertThrows(RuntimeException.class, () -> exa.dropFile(file));
+        Assertions.assertThrows(RuntimeException.class, () -> exa.dropFile());
     }
 
     @Test
@@ -222,7 +223,7 @@ class ExATest {
         host.addExA(exaOther);
         exa.grabFile(file);
 
-        Assertions.assertDoesNotThrow(() -> exa.dropFile(file));
+        Assertions.assertDoesNotThrow(() -> exa.dropFile());
     }
 
     @Test
@@ -235,15 +236,33 @@ class ExATest {
         host.addExA(exa);
         exa.grabFile(file);
 
-        Assertions.assertDoesNotThrow(() -> exa.dropFile(file));
+        Assertions.assertDoesNotThrow(() -> exa.dropFile());
 
         Assertions.assertTrue(file.getOwnedBy().isEmpty());
         Assertions.assertTrue(exa.getCurrentFile().isEmpty());
         Assertions.assertEquals(host, file.getPlacedHost().orElseThrow());
     }
 
+    @Test
+    void replicate_ShouldFailIfNotEnoughSpace() {
+        var host = new Host("800", 3);
+        var exa = new ExA("exa-1", defaultProgram());
+
+        host.addExA(exa);
+        host.addExA(new ExA("exa-2", defaultProgram()));
+        host.addExA(new ExA("exa-3", defaultProgram()));
+
+        Assertions.assertEquals(0, host.getRemainingSpaces());
+        Assertions.assertThrows(RuntimeException.class, () -> exa.replicate("TODO"));
+        Assertions.assertEquals(0, host.getRemainingSpaces());
+    }
+
+    @Test
+    void replicate_ClonedExAShouldHaveCorrectLabelAsStartingPoint() {
+
+    }
 
     private Program defaultProgram() {
-        return new Program();
+        return new Program(List.of(), 0);
     }
 }

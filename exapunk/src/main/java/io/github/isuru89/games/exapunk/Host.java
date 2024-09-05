@@ -1,11 +1,6 @@
 package io.github.isuru89.games.exapunk;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 public class Host {
 
@@ -44,6 +39,10 @@ public class Host {
         remainingSpaces++;
     }
 
+    public Optional<File> findFileById(String fileId) {
+        return files.stream().filter(f -> fileId.equals(f.getId())).findFirst();
+    }
+
     public void removeExA(ExA exA) {
         if (exAs.remove(exA)) {
             remainingSpaces++;
@@ -54,6 +53,10 @@ public class Host {
 
     public Optional<Host> getLinkedHost(int hostId) {
         return Optional.ofNullable(hostLinks.get(hostId));
+    }
+
+    Optional<ExA> getAnotherExa(ExA toIgnore) {
+        return exAs.stream().filter(e -> !e.equals(toIgnore)).findFirst();
     }
 
     public void addExA(ExA exa) {

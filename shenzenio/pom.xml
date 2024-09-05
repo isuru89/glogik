@@ -9,7 +9,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>glogik-shenzenio</artifactId>
+    <artifactId>shenzenio</artifactId>
     <packaging>jar</packaging>
 
 </project>
