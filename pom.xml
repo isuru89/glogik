@@ -19,6 +19,7 @@
     <modules>
         <module>shenzenio</module>
         <module>exapunk</module>
+        <module>factories</module>
     </modules>
 
     <dependencies>

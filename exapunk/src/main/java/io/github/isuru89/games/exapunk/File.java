@@ -1,6 +1,10 @@
 package io.github.isuru89.games.exapunk;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Objects;
+import java.util.Optional;
 
 public class File {
 
@@ -61,12 +65,17 @@ public class File {
         return Objects.hash(id);
     }
 
+    @Override
+    public String toString() {
+        return "File{" +
+                "contents=" + contents +
+                '}';
+    }
+
     static class ContentIterator implements ListIterator<String> {
-        private final File file;
-        private ListIterator<String> it;
+        private final ListIterator<String> it;
 
         ContentIterator(File file) {
-            this.file = file;
             this.it = file.contents.listIterator();
         }
 
@@ -117,17 +126,33 @@ public class File {
 
         @Override
         public void remove() {
-            it.remove();
+            if (it.hasNext()) {
+                it.next();
+                it.previous();
+                it.remove();
+            } else {
+                throw new RuntimeException("cannot remove from end of file!");
+            }
         }
 
         @Override
         public void set(String s) {
-            it.set(s);
+            if (it.hasNext()) {
+                it.next();
+                it.set(s);
+                it.previous();
+            } else {
+                add(s);
+            }
         }
 
         @Override
         public void add(String s) {
-            it.add(s);
+            if (!it.hasNext()) {
+                it.add(s);
+            } else {
+                throw new RuntimeException("cannot add elements in the middle of file");
+            }
         }
     }
 
