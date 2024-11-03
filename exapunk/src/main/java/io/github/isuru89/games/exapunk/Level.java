@@ -2,16 +2,23 @@ package io.github.isuru89.games.exapunk;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-public class Level {
+public class Level implements Iterable<String> {
 
     private final Set<File> allFiles = new HashSet<>();
     private final Set<ExA> allExAs = new HashSet<>();
     private final Set<Host> allHosts = new HashSet<>();
     private final Map<Host, Map<Integer, Host>> hostConnections = new HashMap<>();
+
+    private final BufferValue globalM = new BufferValue();
+
+    public BufferValue getGlobalM() {
+        return globalM;
+    }
 
     public Optional<File> findFileById(String fileId) {
         return allFiles.stream().filter(f -> f.getId().equals(fileId)).findFirst();
@@ -25,6 +32,37 @@ public class Level {
         if (!allHosts.add(host)) {
             throw new RuntimeException("host with same id exists");
         }
+    }
+
+    public boolean areHostsConnected(String fromHostId, String toHostId) {
+        Set<String> traversedHosts = new HashSet<>();
+        var fromHost = findHostById(fromHostId).orElseThrow(() -> new RuntimeException("no host found by id " + fromHostId));
+        var toHost = findHostById(toHostId).orElseThrow(() -> new RuntimeException("no host found by id " + toHostId));
+
+        traversedHosts.add(fromHostId);
+
+        return isConnected(fromHost, toHost, traversedHosts);
+    }
+
+    private boolean isConnected(Host fromHost, Host toHost, Set<String> traversedHosts) {
+        var connected = hostConnections.getOrDefault(fromHost, Map.of());
+        if (connected.isEmpty()) {
+            return false;
+        }
+
+        for (var next : connected.values()) {
+            if (toHost.equals(next)) {
+                return true;
+            }
+
+            traversedHosts.add(next.getId());
+            if (isConnected(next, toHost, traversedHosts)) {
+                return true;
+            }
+            traversedHosts.remove(next.getId());
+        }
+
+        return false;
     }
 
     public void linkHosts(Host from, Host to, int linkId) {
@@ -68,6 +106,37 @@ public class Level {
         exA.setCurrentLevel(null);
     }
 
-    private static record LinkedHost(int linkId, Host host) {
+    public Optional<Host> findHostById(String id) {
+        return allHosts.stream().filter(h -> id.equals(h.getId())).findFirst();
+    }
+
+    @Override
+    public Iterator<String> iterator() {
+        return new Execution();
+    }
+
+    private class Execution implements Iterator<String> {
+
+        private int cycles;
+
+        @Override
+        public boolean hasNext() {
+            return !allExAs.isEmpty();
+        }
+
+        @Override
+        public String next() {
+            for (var exa : allExAs) {
+                exa.prepareCycle();
+            }
+
+            for (var exa : allExAs) {
+                exa.executeCycle();
+            }
+
+
+            cycles++;
+            return null;
+        }
     }
 }

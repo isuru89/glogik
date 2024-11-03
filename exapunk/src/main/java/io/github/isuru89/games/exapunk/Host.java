@@ -1,6 +1,11 @@
 package io.github.isuru89.games.exapunk;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 public class Host {
 
@@ -10,6 +15,7 @@ public class Host {
     private final Set<Host> neighbors = new HashSet<>();
     private final Set<File> files = new HashSet<>();
     private final Map<Integer, Host> hostLinks = new HashMap<>();
+    private final BufferValue localM = new BufferValue();
     private int remainingSpaces;
 
     public Host(String id, int totalSpaces) {
@@ -97,6 +103,14 @@ public class Host {
 
     public int getTotalSpaces() {
         return totalSpaces;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public BufferValue getLocalM() {
+        return localM;
     }
 
     @Override

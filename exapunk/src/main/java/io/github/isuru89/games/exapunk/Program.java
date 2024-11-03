@@ -1,6 +1,10 @@
 package io.github.isuru89.games.exapunk;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 public class Program {
 
@@ -52,30 +56,34 @@ public class Program {
         return pos;
     }
 
-    public void execute() {
+    public String getNextInstruction() {
         int nextPos = findNextExecutableStatement(currentPosition);
         String line = lines.get(nextPos).trim();
         currentPosition = nextPos + 1;
 
-        String[] args = line.split("[\\s+]");
-        String cmd = args[0];
+        return line;
+    }
 
-        switch (cmd) {
-            case "link":
-                owner.moveToHost(Integer.parseInt(args[1]));
-                break;
-            case "grab":
-                var host = owner.getCurrentHost().orElseThrow(() -> new RuntimeException("exa is in invalid host"));
-                owner.grabFile(host.findFileById(args[1]).orElseThrow(() -> new RuntimeException("no such file by given id")));
-                break;
-            case "drop":
-                owner.dropFile();
-                break;
-            case "repl":
-                owner.replicate(args[1]);
-            default:
-                throw new RuntimeException("unknown command");
+    private Value commandCopy(String[] args) {
+        var from = args[1];
+        var to = args[2];
+
+        boolean canExecute = (!owner.isRegisterAddress(from) || owner.canValueRead(from))
+                && (!owner.isRegisterAddress(to) || owner.canValueRead(to));
+
+        if (!canExecute) {
+            return Value.blocked();
         }
+
+        Value fromVal;
+        Value toVal;
+        if (owner.isRegisterAddress(from)) {
+            fromVal = owner.getRegisterValue(from);
+        } else {
+            fromVal = Value.nonBlocked(from);
+        }
+
+        return Value.nonBlocked(to);
     }
 
     private boolean isExecutableStatement(String line) {

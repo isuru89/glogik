@@ -1,5 +1,7 @@
 package io.github.isuru89.games.exapunk;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -8,6 +10,7 @@ public class ExA {
 
     private final String id;
     private final AtomicInteger subIds = new AtomicInteger(0);
+    private final Map<String, String> registers = new HashMap<>();
     private Program program;
     private Host currentHost;
     private File currentFile;
@@ -20,10 +23,122 @@ public class ExA {
         this.local = false;
         this.setProgram(program);
         this.blockContext = new BlockContext(BlockType.NONE, this.local);
+
+        this.registers.putAll(Map.of(
+                "X", "0",
+                "T", "0",
+                "F", "0",
+                "M", "0"));
+    }
+
+    public boolean isLocal() {
+        return local;
+    }
+
+    public Level getCurrentLevel() {
+        return currentLevel;
     }
 
     void setCurrentLevel(Level currentLevel) {
         this.currentLevel = currentLevel;
+    }
+
+    public BlockContext prepareCycle() {
+        return null;
+    }
+
+    public BlockContext executeCycle() {
+        String line = program.getNextInstruction();
+        String[] ops = line.split("[\\s+]");
+        String cmd = ops[0];
+
+        var executor = new Executor(this, ops);
+
+        // execute
+        switch (cmd) {
+            case "link":
+                return executor.commandLink();
+            case "copy":
+                return executor.commandCopy();
+            default:
+                throw new RuntimeException("unknown command!");
+        }
+
+    }
+
+    Value setRegisterValue(String register, String value) {
+        var reg = register.toUpperCase();
+        if (!registers.containsKey(reg)) {
+            throw new RuntimeException("no such registers found in exa!");
+        }
+
+        if ("M".equals(reg)) {
+            mustHaveALevelAndHost();
+
+            if (this.local) {
+                return currentHost.getLocalM().write(value);
+            } else {
+                return currentLevel.getGlobalM().write(value);
+            }
+        }
+
+        registers.put(register, value);
+        return Value.nonBlocked(value);
+    }
+
+    boolean isRegisterAddress(String val) {
+        return registers.containsKey(val.toUpperCase());
+    }
+
+    boolean canValueRead(String register) {
+        var reg = register.toUpperCase();
+
+        if ("M".equals(reg)) {
+            mustHaveALevelAndHost();
+
+            if (this.local) {
+                return currentHost.getLocalM().peek().isPresent();
+            } else {
+                return currentLevel.getGlobalM().peek().isPresent();
+            }
+        }
+
+        return isRegisterAddress(reg);
+    }
+
+    boolean canValueWrite(String register) {
+        var reg = register.toUpperCase();
+
+        if ("M".equals(reg)) {
+            mustHaveALevelAndHost();
+
+            if (this.local) {
+                return currentHost.getLocalM().peek().isEmpty();
+            } else {
+                return currentLevel.getGlobalM().peek().isEmpty();
+            }
+        }
+
+        return isRegisterAddress(reg);
+    }
+
+    Value getRegisterValue(String register) {
+        var reg = register.toUpperCase();
+        if (!registers.containsKey(reg)) {
+            throw new RuntimeException("no such registers found in exa!");
+        }
+
+        if ("M".equals(reg)) {
+            mustHaveALevelAndHost();
+
+            if (this.local) {
+                return currentHost.getLocalM().read();
+            } else {
+                return currentLevel.getGlobalM().read();
+            }
+        }
+
+        return Value.nonBlocked(registers.get(reg));
     }
 
     void setProgram(Program program) {
@@ -42,10 +157,14 @@ public class ExA {
         }
     }
 
+    public String getCurrentHostId() {
+        mustHaveALevelAndHost();
+
+        return currentHost.getId();
+    }
+
     public void grabFile(File file) {
-        if (currentFile != null) {
-            throw new RuntimeException("exa already own another file!");
-        }
+        mustNotHoldAFile();
 
         if (file.getOwnedBy().isPresent()) {
             throw new RuntimeException("file is already owned by some other exa!");
@@ -63,22 +182,15 @@ public class ExA {
     }
 
     public void dropFile() {
-        if (currentHost == null) {
-            throw new RuntimeException("exa is not in a host!");
-        }
-
-        if (currentFile == null) {
-            throw new RuntimeException("exa does not owning a file!");
-        }
+        mustHaveALevelAndHost();
+        mustHoldAFile();
 
         var fileOwner = currentFile.getOwnedBy().orElseThrow(() -> new RuntimeException("file is not owned by any exa!"));
         if (!this.equals(fileOwner)) {
             throw new RuntimeException("file does not owned by this exa!");
         }
 
-        if (currentHost.getRemainingSpaces() <= 0) {
-            throw new RuntimeException("not enough space to drop file!");
-        }
+        mustHaveEnoughSpaceInHost();
 
         currentHost.addFile(currentFile);
         currentFile.setOwnedBy(null);
@@ -86,9 +198,7 @@ public class ExA {
     }
 
     public ExA replicate(String label) {
-        if (!currentHost.hasEnoughSpace()) {
-            throw new RuntimeException("not enough space on the current host");
-        }
+        mustHaveEnoughSpaceInHost();
 
         if (program.getLabelPosition(label) < 0) {
             throw new RuntimeException("no such label exists by given name");
@@ -105,22 +215,15 @@ public class ExA {
     }
 
     public void wipe() {
-        if (currentFile == null) {
-            throw new RuntimeException("no file is held by this exa");
-        }
+        mustHoldAFile();
 
         currentFile.setOwnedBy(null);
         currentFile = null;
     }
 
     public void make() {
-        if (currentFile != null) {
-            throw new RuntimeException("exa is holding a file already");
-        }
-
-        if (currentLevel == null) {
-            throw new RuntimeException("this exa does not belong to a level");
-        }
+        mustNotHoldAFile();
+        mustHaveALevelAndHost();
 
         int fId = 200;
         while (currentLevel.findFileById(String.valueOf(fId)).isPresent()) {
@@ -160,7 +263,6 @@ public class ExA {
         var other = currentHost.getAnotherExa(this);
         if (other.isPresent()) {
             other.get().halt();
-
         } else {
             throw new RuntimeException("no exas to kill");
         }
@@ -176,6 +278,37 @@ public class ExA {
 
     public void setCurrentHost(Host host) {
         currentHost = host;
+    }
+
+    BlockContext createNonBlockingCtx() {
+        return new BlockContext(BlockType.NONE, this.local);
+    }
+
+    private void mustHaveALevelAndHost() {
+        if (currentLevel == null) {
+            throw new RuntimeException("this exa does not belong to a level");
+        }
+        if (currentHost == null) {
+            throw new RuntimeException("exa is not in a host!");
+        }
+    }
+
+    private void mustHaveEnoughSpaceInHost() {
+        if (!currentHost.hasEnoughSpace()) {
+            throw new RuntimeException("not enough space on the current host");
+        }
+    }
+
+    private void mustHoldAFile() {
+        if (currentFile == null) {
+            throw new RuntimeException("no file is held by this exa");
+        }
+    }
+
+    private void mustNotHoldAFile() {
+        if (currentFile != null) {
+            throw new RuntimeException("exa is holding a file already");
+        }
     }
 
     @Override
